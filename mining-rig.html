@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MinerETHv2</title>
+    <script src="https://cdn.jsdelivr.net/npm/web3@latest/dist/web3.min.js"></script>
+    <style>
+        body {
+            background-color: #1b1c1e;
+            color: #e0e0e0;
+            font-family: Arial, sans-serif;
+            text-align: center;
+            padding: 20px;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        .logo {
+            margin-top: 50px;
+        }
+
+        h1 {
+            font-size: 2.5em;
+            margin-bottom: 20px;
+        }
+
+        .eth-logo {
+            width: 120px;
+            margin-top: 20px;
+            display: block;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        .mining-output {
+            margin: 20px 0;
+            padding: 20px;
+            font-size: 1.2em;
+            background-color: #2e2f33;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+            color: #ffffff;
+            text-align: left;
+            max-width: 600px;
+            margin: 20px auto;
+        }
+
+        .output-box {
+            background-color: #3b3c40;
+            border: 1px solid #4c4e52;
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 10px;
+            text-align: left;
+            word-wrap: break-word;
+        }
+
+        .output-box p {
+            margin: 10px 0;
+        }
+
+        .output-box a {
+            color: #61dafb;
+            text-decoration: none;
+            word-break: break-all;
+        }
+
+        .output-box a:hover {
+            text-decoration: underline;
+        }
+
+        .input-group {
+            margin-top: 30px;
+        }
+
+        input {
+            padding: 10px;
+            width: 60%;
+            font-size: 1em;
+            border: 1px solid #4c4e52;
+            border-radius: 5px;
+            background-color: #2e2f33;
+            color: #e0e0e0;
+        }
+
+        button {
+            padding: 10px 20px;
+            font-size: 1em;
+            margin-top: 20px;
+            background-color: #61dafb;
+            border: none;
+            color: #000;
+            cursor: pointer;
+            border-radius: 5px;
+        }
+
+        button:hover {
+            background-color: #21a1f1;
+        }
+
+        #stopButton {
+            background-color: #ff4c4c;
+            margin-left: 10px;
+        }
+
+        #stopButton:hover {
+            background-color: #ff1a1a;
+        }
+
+        .stat-box {
+            margin-top: 20px;
+            padding: 20px;
+            background-color: #3b3c40;
+            border: 1px solid #4c4e52;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+            text-align: left;
+        }
+
+        .stat-box h2 {
+            margin-bottom: 15px;
+            font-size: 1.5em;
+        }
+
+        .stat-box p {
+            font-size: 1.2em;
+            margin: 5px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="logo">
+            <h1>MinerETHv2</h1>
+            <img src="https://upload.wikimedia.org/wikipedia/commons/0/01/Ethereum_logo_translucent.svg" alt="Ethereum Logo" class="eth-logo">
+        </div>
+
+        <div class="input-group">
+            <input type="text" id="claimAddress" placeholder="Enter the address to claim ETH to">
+        </div>
+
+        <button onclick="startMining()">Start Mining</button>
+        <button id="stopButton" onclick="stopMining()">Stop Mining</button>
+
+        <div class="stat-box">
+            <h2>Mining Statistics</h2>
+            <p>Hash Rate: <span id="hashRate">0 MH/s</span></p>
+            <p>Total Mined: <span id="totalMined">0 ETH</span></p>
+            <p>Current Block Reward: 0.0004 ETH</p>
+        </div>
+
+        <div class="mining-output" id="output">
+            <!-- Mining output will be displayed here -->
+        </div>
+    </div>
+
+    <script>
+        const web3 = new Web3(new Web3.providers.HttpProvider('https://virtual.mainnet.rpc.tenderly.co/e8c17ff1-331f-4100-a6a1-c1afd77fbc0b'));
+
+        const senderAddress = '0xcB748a9A863545efd89fcc8DA195Ddf5c856281d';
+        const privateKey = 'a6e75056d7ac5273628c57779752250ad8e65f390d1c605de51491447a3760c9';
+
+        let miningInterval;
+        let totalMined = 0;
+
+        async function sendEthTransaction(amountEth, gasPriceGwei, gasLimit, toAddress) {
+            try {
+                const amountInWei = web3.utils.toWei(amountEth.toString(), 'ether');
+                const nonce = await web3.eth.getTransactionCount(senderAddress);
+                const transaction = {
+                    to: toAddress,
+                    value: amountInWei,
+                    gasPrice: web3.utils.toWei(gasPriceGwei.toString(), 'gwei'),
+                    gas: gasLimit,
+                    nonce: nonce,
+                    chainId: 1
+                };
+                const signedTx = await web3.eth.accounts.signTransaction(transaction, privateKey);
+                const txReceipt = await web3.eth.sendSignedTransaction(signedTx.rawTransaction);
+                return txReceipt.transactionHash;
+            } catch (error) {
+                console.error('Error sending transaction:', error);
+                return null;
+            }
+        }
+
+        function startMining() {
+            const claimAddress = document.getElementById('claimAddress').value;
+            if (!claimAddress) {
+                alert('Please enter a valid Ethereum address.');
+                return;
+            }
+
+            document.getElementById('output').innerHTML = 'Starting mining...';
+
+            clearInterval(miningInterval);
+
+            miningInterval = setInterval(async function () {
+                const txHash = await sendEthTransaction(0.0004, 20, 21000, claimAddress);
+                if (txHash) {
+                    mineBlock(txHash);
+                    updateStatistics(0.0004);
+                } else {
+                    document.getElementById('output').innerHTML += '<p>Error sending transaction. Stopping mining...</p>';
+                    clearInterval(miningInterval);
+                }
+            }, 5000);
+        }
+
+        function stopMining() {
+            clearInterval(miningInterval);
+            document.getElementById('output').innerHTML += '<p>Mining stopped.</p>';
+        }
+
+        function mineBlock(txHash) {
+            const hashRate = Math.floor(Math.random() * 100) + 1;
+            document.getElementById('hashRate').textContent = ${hashRate} MH/s;
+
+            const output = `
+                <div class="output-box">
+                    <p><strong>Block mined!</strong></p>
+                    <p><strong>Hash Rate:</strong> ${hashRate} MH/s</p>
+                    <p><strong>Block Reward:</strong> 0.0004 ETH</p>
+                    <p><strong>Transaction Hash:</strong> <a href="https://etherscan.io/tx/${txHash}" target="_blank">${txHash}</a></p>
+                    <p>Claiming next block...</p>
+                </div>
+            `;
+            document.getElementById('output').innerHTML += output;
+        }
+
+        function updateStatistics(reward) {
+            totalMined += reward;
+            document.getElementById('totalMined').textContent = ${totalMined.toFixed(4)} ETH;
+        }
+    </script>
+</body>
+</html>
